@@ -4,7 +4,6 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const path = require('path');
 
-// --- Database Connection ---
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB connected successfully!'))
   .catch(err => console.error('MongoDB connection error:', err));
@@ -12,19 +11,18 @@ mongoose.connect(process.env.MONGO_URI)
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-// --- Middlewares ---
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// --- API Routes ---
 const authRoutes = require('./routes/auth');
 const reportRoutes = require('./routes/reports');
+const commentRoutes = require('./routes/comments');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/reports', commentRoutes); // Handles nested routes like /api/reports/:id/comments
 
-// --- Start the Server ---
 app.listen(PORT, () => {
   console.log(`🚀 Server is running on http://localhost:${PORT}`);
 });
