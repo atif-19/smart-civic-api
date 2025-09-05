@@ -6,10 +6,18 @@ require('./Comment');
 const reportSchema = new mongoose.Schema({
   category: { type: String, required: true },
   description: { type: String, required: true },
+    priority: { type: String, enum: ['Low', 'Medium', 'High'], default: 'Medium' }, // --- NEW ---
   location: {
     lat: { type: Number, required: true },
     lng: { type: Number, required: true },
   },
+  parentCategory: { // --- NEW ---
+    type: String, 
+    required: true,
+    enum: ['Roads', 'Electrical', 'Sanitation', 'Environment', 'Infrastructure', 'Other']
+  },
+    resolvedAt: { type: Date }, // --- NEW ---
+
   imageUrl: { type: String, required: true },
   submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   status: { type: String, default: 'submitted' },
