@@ -39,16 +39,32 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
       return res.status(400).json({ message: 'Image file is required.' });
     }
 
-    const aiResult = await analyzeReport(description, imageFile.buffer, imageFile.mimetype);
+    let aiResult;
+    try {
+      // --- THIS IS THE SAFETY NET ---
+      // We attempt to get the AI analysis inside its own try...catch block
+      aiResult = await analyzeReport(description, imageFile.buffer, imageFile.mimetype);
+    } catch (error) {
+      console.error("AI analysis failed, using fallback.", error);
+      // If the AI fails for ANY reason, we create a valid default result
+      aiResult = {
+        isRelevant: true,
+        category: "Uncategorized",
+        parentCategory: "Other",
+        priority: "Medium",
+        justification: "Needs manual review; AI analysis failed."
+      };
+    }
 
+    if (aiResult.isRelevant === false) {
+      return res.status(400).json({ message: 'Irrelevant report. Please submit a valid civic issue.' });
+    }
+    
     const cloudinaryUpload = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: "civic-reports" },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
+      const uploadStream = cloudinary.uploader.upload_stream({ folder: "civic-reports" }, (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      });
       uploadStream.end(imageFile.buffer);
     });
 
@@ -62,10 +78,10 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
       priority: aiResult.priority,
     });
 
-    const savedReport = await newReport.save();
+    await newReport.save();
     await User.findByIdAndUpdate(req.userId, { $inc: { points: 10 } });
 
-    res.status(201).json({ message: 'Report submitted and analyzed successfully!', report: savedReport });
+    res.status(201).json({ message: 'Report submitted successfully!', report: newReport });
   } catch (error) {
     console.error('Submit Report Error:', error);
     res.status(500).json({ message: 'Server error while saving report.' });
@@ -77,14 +93,12 @@ router.patch('/:id/upvote', authMiddleware, async (req, res) => {
   try {
     const report = await Report.findById(req.params.id);
     if (!report) return res.status(404).json({ message: 'Report not found.' });
-
     const upvoteIndex = report.upvotes.findIndex(userId => userId.equals(req.userId));
     if (upvoteIndex > -1) {
       report.upvotes.splice(upvoteIndex, 1);
     } else {
       report.upvotes.push(req.userId);
     }
-
     await report.save();
     const updatedReport = await Report.findById(report._id).populate('submittedBy', 'email').populate('commentCount');
     res.status(200).json(updatedReport);
@@ -100,16 +114,13 @@ router.patch('/:id', authMiddleware, async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    // --- UPDATED LOGIC ---
-    // Prepare the update object
     const updateData = { status };
-    // If the new status is 'resolved', set the resolvedAt timestamp
     if (status === 'resolved') {
       updateData.resolvedAt = new Date();
     }
 
     const updatedReport = await Report.findByIdAndUpdate(id, updateData, { new: true })
-        .populate('submittedBy', 'email');
+      .populate('submittedBy', 'email');
 
     if (!updatedReport) return res.status(404).json({ message: "Report not found." });
 
