@@ -137,6 +137,7 @@ TEXT_DESCRIPTION = "{{textDescription}}"`;
         return {
             isRelevant: true, // Default to true to avoid rejecting valid reports on AI error
             parentCategory: "Other",
+            
             parentPriority: "Medium",
             category: "Uncategorized",
             priority: "Medium",
