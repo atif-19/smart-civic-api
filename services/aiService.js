@@ -1,7 +1,9 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-
+const axios = require('axios'); // --- ADD THIS LINE ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+
 
 function bufferToGenerativePart(buffer, mimeType) {
     if (!(buffer instanceof Buffer)) {
@@ -87,7 +89,7 @@ const analyzeReport = async (textDescription, imageBuffer, imageMimeType) => {
             
             NOW analyze the provided TEXT_DESCRIPTION and image.
         `;
-        
+
         const result = await model.generateContent([prompt, imagePart]);
         const responseText = result.response.text();
         const jsonString = responseText.replace(/```json/g, '').replace(/```/g, '').trim();

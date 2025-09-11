@@ -139,4 +139,17 @@ router.patch('/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// --- NEW: GET route to fetch reports for the logged-in user ---
+router.get('/my-reports', authMiddleware, async (req, res) => {
+  try {
+    const reports = await Report.find({ submittedBy: req.userId })
+      .sort({ createdAt: -1 });
+      
+    res.json(reports);
+  } catch (error) {
+    console.error('Fetch My Reports Error:', error);
+    res.status(500).json({ message: 'Server error while fetching your reports.' });
+  }
+});
+
 module.exports = router;
