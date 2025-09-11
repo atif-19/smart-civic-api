@@ -1,5 +1,4 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const axios = require('axios'); // --- ADD THIS LINE ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
