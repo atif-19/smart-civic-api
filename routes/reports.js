@@ -15,19 +15,69 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// GET /api/reports
+// --- UPDATED: Main GET route now excludes resolved reports ---
 router.get('/', async (req, res) => {
   try {
-    const reports = await Report.find({})
+    const reports = await Report.find({ status: { $ne: 'resolved' } })
       .populate('submittedBy', 'email')
       .populate('commentCount')
       .sort({ createdAt: -1 });
     res.status(200).json(reports);
   } catch (error) {
-    console.error('Fetch Reports Error:', error);
-    res.status(500).json({ message: 'Server error while fetching reports.' });
+    res.status(500).json({ message: 'Server error fetching reports.' });
   }
 });
+
+// --- NEW: A dedicated route to fetch ONLY resolved reports ---
+router.get('/resolved', async (req, res) => {
+  try {
+    const reports = await Report.find({ status: 'resolved' })
+      .populate('submittedBy', 'email')
+      .sort({ resolvedAt: -1 });
+    res.status(200).json(reports);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error fetching resolved reports.' });
+  }
+});
+
+// --- NEW: A dedicated route to resolve a report with an "after" photo and description ---
+router.patch('/:id/resolve', authMiddleware, upload.single('resolvedImage'), async (req, res) => {
+  try {
+    const { resolutionDescription } = req.body;
+    const imageFile = req.file;
+
+    if (!imageFile || !resolutionDescription) {
+      return res.status(400).json({ message: 'Resolution photo and description are required.' });
+    }
+
+    const cloudinaryUpload = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream({ folder: "civic-reports-resolved" }, (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      });
+      uploadStream.end(imageFile.buffer);
+    });
+
+    const updatedReport = await Report.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: 'resolved',
+        resolvedAt: new Date(),
+        resolvedImageUrl: cloudinaryUpload.secure_url,
+        resolutionDescription: resolutionDescription,
+      },
+      { new: true }
+    );
+
+    if (!updatedReport) return res.status(404).json({ message: "Report not found." });
+    
+    res.status(200).json(updatedReport);
+  } catch (error) {
+    console.error('Resolve Report Error:', error);
+    res.status(500).json({ message: 'Server error while resolving report.' });
+  }
+});
+
 
 // POST /api/reports
 router.post('/', authMiddleware, upload.single('image'), async (req, res) => {

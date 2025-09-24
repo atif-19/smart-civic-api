@@ -16,6 +16,9 @@ const reportSchema = new mongoose.Schema({
     required: true,
     enum: ['Roads', 'Electrical', 'Sanitation', 'Environment', 'Infrastructure', 'Other']
   },
+   // --- NEW: Fields for resolution details ---
+  resolutionDescription: { type: String },
+  resolvedImageUrl: { type: String },
     resolvedAt: { type: Date }, // --- NEW ---
 
   imageUrl: { type: String, required: true },
