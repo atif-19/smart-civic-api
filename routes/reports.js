@@ -129,7 +129,42 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
     });
 
     await newReport.save();
-    await User.findByIdAndUpdate(req.userId, { $inc: { points: 10 } });
+
+    
+     // --- START: Points, Streak, and Weekly Points Logic ---
+    const pointsEarned = 10;
+    const user = await User.findById(req.userId);
+
+    if (user) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        let newStreak = user.contributionStreak || 0;
+        
+        if (user.lastContributionDate) {
+            const lastDate = new Date(user.lastContributionDate);
+            lastDate.setHours(0, 0, 0, 0);
+            
+            const diffDays = Math.ceil((today - lastDate) / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 1) {
+                newStreak++; // Increment streak for consecutive days
+            } else if (diffDays > 1) {
+                newStreak = 1; // Reset streak if a day was missed
+            }
+        } else {
+            newStreak = 1; // First-ever contribution
+        }
+
+        // Update user stats
+        user.points += pointsEarned;
+        user.weeklyPoints += pointsEarned;
+        user.contributionStreak = newStreak;
+        user.lastContributionDate = new Date();
+        
+        await user.save();
+    }
+    // --- END: Points, Streak, and Weekly Points Logic ---
 
     res.status(201).json({ message: 'Report submitted successfully!', report: newReport });
   } catch (error) {

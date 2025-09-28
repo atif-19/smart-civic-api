@@ -1,4 +1,5 @@
 require('dotenv').config();
+require('./scheduler'); // This starts the cron job
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
