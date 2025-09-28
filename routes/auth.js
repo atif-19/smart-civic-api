@@ -7,11 +7,11 @@ const authMiddleware = require('../middleware/authMiddleware');
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, name } = req.body;
   try {
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ message: 'User already exists.' });
-    user = new User({ email, password });
+    user = new User({ email, password, name });
     await user.save();
     const payload = { userId: user.id };
     const token = jwt.sign(payload, process.env.JWT_SECRET || 'your_default_secret', { expiresIn: '1h' });
@@ -58,8 +58,8 @@ router.get('/leaderboard', async (req, res) => {
     const topUsers = await User.find({})
       .sort({ points: -1 })
       .limit(10)
-      .select('email points');
-      
+      .select('email points name');
+
     res.json(topUsers);
   } catch (error) {
     console.error('Leaderboard Error:', error);
