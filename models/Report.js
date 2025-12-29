@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 
 // We need to ensure the Comment model is known to Mongoose before the Report model uses it.
-require('./Comment');
 
 const reportSchema = new mongoose.Schema({
   category: { type: String, required: true },
@@ -10,7 +9,11 @@ const reportSchema = new mongoose.Schema({
   location: {
     lat: { type: Number, required: true },
     lng: { type: Number, required: true },
+
   },
+  // --- NEW FIELDS ---
+  pincode: { type: String },
+  fullAddress: { type: String },
   parentCategory: { // --- NEW ---
     type: String, 
     required: true,
@@ -25,7 +28,24 @@ const reportSchema = new mongoose.Schema({
   submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   status: { type: String, default: 'submitted' },
   upvotes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  confirmIssue: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   createdAt: { type: Date, default: Date.now },
+  // responsibleDepartment: { type: String }, // --- NEW ---
+  responsibleDepartment: {
+    type: String,
+    enum: [
+      'Municipal Corporation',
+      'Sanitation Department',
+      'Police/Public safety',
+      'Road & Transportation',
+      'Water Department',
+      'Electricity Department',
+      'Parks and Recreation', // Added to match frontend
+      'Public Works',          // Added to match frontend
+      'Other'
+    ],
+    default: 'Other'
+  },
 });
 
 reportSchema.virtual('upvoteCount').get(function() {

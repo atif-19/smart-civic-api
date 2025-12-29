@@ -37,7 +37,7 @@ const analyzeReport = async (textDescription, imageBuffer, imageMimeType) => {
 
             Hard Rules:
             - You MUST respond ONLY with a single, valid JSON object and nothing else
-            - The JSON must contain these five keys in this exact order: isRelevant, category, parentCategory, priority, justification
+            - The JSON must contain these five keys in this exact order: isRelevant, category, parentCategory, priority,responsibleDepartment, justification
             - No additional text, explanations, or formatting outside the JSON
 
             Types & Value Constraints:
@@ -45,6 +45,7 @@ const analyzeReport = async (textDescription, imageBuffer, imageMimeType) => {
             - category: short string, Title Case, max 4 words (e.g., "Garbage Overflow")
             - parentCategory: one of ["Roads", "Electrical", "Sanitation", "Environment", "Infrastructure", "Other"]
             - priority: one of ["High", "Medium", "Low"]
+            - responsibleDepartment: one of ["Municipal Corporation", "Sanitation Department", "Police/Public safety", "Road & Transportation", "Water Department", "Electricity Department", "Parks and Recreation", "Public Works", "Other"]
             - justification: a short sentence (5–20 words) explaining the decision based on evidence
 
             🔍 ENHANCED DECISION-MAKING ALGORITHM (Follow in this EXACT order):
@@ -94,7 +95,7 @@ const analyzeReport = async (textDescription, imageBuffer, imageMimeType) => {
         const jsonString = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
         const parsedResult = JSON.parse(jsonString);
 
-        if (!parsedResult.category || !parsedResult.priority || !parsedResult.parentCategory) {
+        if (!parsedResult.category || !parsedResult.priority || !parsedResult.parentCategory || !parsedResult.responsibleDepartment ) {
             throw new Error("AI response was not in the expected format.");
         }
 
@@ -108,6 +109,7 @@ const analyzeReport = async (textDescription, imageBuffer, imageMimeType) => {
             category: "Uncategorized",
             parentCategory: "Other",
             priority: "Medium",
+            responsibleDepartment: "Other",
             justification: "AI analysis failed. Please review manually."
         };
     }

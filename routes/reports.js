@@ -7,6 +7,7 @@ const upload = require('../middleware/multer');
 const { sendNotificationEmail } = require('../services/emailService');
 const { analyzeReport } = require('../services/aiService');
 const cloudinary = require('cloudinary').v2;
+const axios = require('axios'); // <-- 1. IMPORT AXIOS
 
 // Configure Cloudinary
 cloudinary.config({
@@ -14,7 +15,7 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
-
+  
 // --- UPDATED: Main GET route now excludes resolved reports ---
 router.get('/', async (req, res) => {
   try {
@@ -45,7 +46,7 @@ router.patch('/:id/resolve', authMiddleware, upload.single('resolvedImage'), asy
   try {
     const { resolutionDescription } = req.body;
     const imageFile = req.file;
-
+    
     if (!imageFile || !resolutionDescription) {
       return res.status(400).json({ message: 'Resolution photo and description are required.' });
     }
@@ -84,7 +85,7 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
   try {
     const { description, location } = req.body;
     const imageFile = req.file;
-
+    const parsedLocation = JSON.parse(location);
     if (!imageFile) {
       return res.status(400).json({ message: 'Image file is required.' });
     }
@@ -102,14 +103,55 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
         category: "Uncategorized",
         parentCategory: "Other",
         priority: "Medium",
-        justification: "Needs manual review; AI analysis failed."
+        justification: "Needs manual review; AI analysis failed.",
+        responsibleDepartment: "Other"
       };
     }
 
     if (aiResult.isRelevant === false) {
       return res.status(400).json({ message: 'Irrelevant report. Please submit a valid civic issue.' });
     }
-    
+
+    // --- START: UPDATED Geoapify Logic with Distance Check ---
+    let pincode = 'N/A';
+    let fullAddress = 'Address not found';
+    try {
+      const { lat, lng } = parsedLocation;
+      
+      const response = await axios.get('https://api.geoapify.com/v1/geocode/reverse', {
+        params: {
+          lat: lat,
+          lon: lng,
+          apiKey: process.env.GEOAPIFY_API_KEY
+        }
+      });
+
+      if (response.data && response.data.features && response.data.features.length > 0) {
+        const result = response.data.features[0].properties;
+        const distance = result.distance; // Distance in meters
+
+        // Set a maximum acceptable distance for an address to be considered accurate
+        const MAX_DISTANCE_METERS = 100;
+
+        // Check if the found address is close enough to be useful
+        if (distance <= MAX_DISTANCE_METERS) {
+          // Accurate result: Use the formatted street address
+          fullAddress = result.formatted;
+        } else {
+          // Inaccurate result: Fall back to a more general location
+          const suburb = result.suburb || '';
+          const city = result.city || 'Surat';
+          fullAddress = `Approx. location near ${suburb}, ${city}`;
+        }
+        
+        pincode = result.postcode || 'N/A';
+      }
+
+    } catch (geoError) {
+      console.error("Geoapify Geocoding failed:", geoError.message);
+    }
+    // --- END: Geoapify Logic ---
+
     const cloudinaryUpload = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream({ folder: "civic-reports" }, (error, result) => {
         if (error) reject(error);
@@ -126,6 +168,9 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
       category: aiResult.category,
       parentCategory: aiResult.parentCategory,
       priority: aiResult.priority,
+      pincode: pincode,
+      fullAddress: fullAddress,
+      responsibleDepartment: aiResult.responsibleDepartment
     });
 
     await newReport.save();
@@ -192,8 +237,36 @@ router.patch('/:id/upvote', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error while upvoting.' });
   }
 });
+// PATCH /api/reports/:id/confirm
+router.patch('/:id/confirm', authMiddleware, async (req, res) => {
+  try {
+    const report = await Report.findById(req.params.id);
+    if (!report) return res.status(404).json({ message: 'Report not found.' });
 
-// PATCH /api/reports/:id (status update)
+    // Find if user already confirmed
+    const confirmIndex = report.confirmIssue.findIndex(userId => userId.equals(req.userId));
+
+    if (confirmIndex > -1) {
+      // Remove user (un-confirm)
+      report.confirmIssue.splice(confirmIndex, 1);
+    } else {
+      // Add user (confirm)
+      report.confirmIssue.push(req.userId);
+    }
+
+    await report.save();
+
+    // Populate again to ensure the frontend gets the full object
+    const updatedReport = await Report.findById(report._id)
+      .populate('submittedBy', 'email')
+      .populate('commentCount');
+
+    res.status(200).json(updatedReport);
+  } catch (error) {
+    console.error('Confirm Error:', error);
+    res.status(500).json({ message: 'Server error while confirming issue.' });
+  }
+});// PATCH /api/reports/:id (status update)
 router.patch('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
